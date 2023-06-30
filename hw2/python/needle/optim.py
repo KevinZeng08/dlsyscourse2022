@@ -25,7 +25,14 @@ class SGD(Optimizer):
 
     def step(self):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        # weight_decay在loss上加了一个正则项，求导后为weight_decay * param
+        for p in self.params:
+            grad = self.u.get(p, 0) * self.momentum + (1 - self.momentum) * (p.grad.detach() + self.weight_decay * p.detach())
+            grad = ndl.Tensor(grad, device=p.device, dtype=p.dtype)
+            self.u[p] = grad
+            # 左边的p.data调用@data.setter修饰的data函数
+            # 右边的p.data新创建一个独立于计算图的Tensor进行计算，调用@property修饰的data
+            p.data =  p.data - self.lr * grad
         ### END YOUR SOLUTION
 
 
@@ -52,5 +59,19 @@ class Adam(Optimizer):
 
     def step(self):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        self.t += 1
+        for p in self.params:
+            grad_with_wd = p.grad.detach() + self.weight_decay * p.detach()
+            new_m = (self.m.get(p, 0) * self.beta1 + (1 - self.beta1) * grad_with_wd).detach()
+            new_v = (self.v.get(p, 0) * self.beta2 + (1 - self.beta2) * grad_with_wd * grad_with_wd).detach()
+
+            self.m[p] = new_m
+            self.v[p] = new_v
+
+            m_with_bias_corr = (new_m / (1 - self.beta1 ** self.t)).detach()
+            v_with_bias_corr = (new_v / (1 - self.beta2 ** self.t)).detach()
+
+            update = (self.lr * m_with_bias_corr / (ndl.power_scalar(v_with_bias_corr, 0.5).detach() + self.eps)).detach()
+            update = ndl.Tensor(update, dtype=p.dtype)
+            p.data -= update.detach()
         ### END YOUR SOLUTION

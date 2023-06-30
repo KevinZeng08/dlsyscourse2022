@@ -24,7 +24,18 @@ class RandomFlipHorizontal(Transform):
         """
         flip_img = np.random.rand() < self.p
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        # 对每一行进行翻转
+        # if flip_img:
+        #     flipped_image = []
+        #     for row in img:
+        #         flipped_row = row[::-1]  # 反转当前行
+        #         flipped_image.append(flipped_row)
+        #     img = flipped_image
+        # return img
+        if flip_img:
+            # 选中第一维所有，对每一行进行翻转，选中第三维所有
+            img = img[:, ::-1, :]
+        return img
         ### END YOUR SOLUTION
 
 
