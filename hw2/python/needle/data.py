@@ -1,5 +1,8 @@
 import numpy as np
 from .autograd import Tensor
+import gzip
+import struct
+import logging
 
 from typing import Iterator, Optional, List, Sized, Union, Iterable, Any
 
@@ -53,7 +56,14 @@ class RandomCrop(Transform):
         """
         shift_x, shift_y = np.random.randint(low=-self.padding, high=self.padding+1, size=2)
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        h,w,c = img.shape
+        padded_img = np.zeros((h + 2*self.padding, w + 2*self.padding, c))
+
+        padded_img[self.padding:self.padding+h, self.padding:self.padding+w, :] = img
+
+        new_x, new_y = self.padding + shift_x, self.padding + shift_y
+        crop_img = padded_img[new_x:new_x+h, new_y:new_y+w]
+        return crop_img
         ### END YOUR SOLUTION
 
 
@@ -109,16 +119,28 @@ class DataLoader:
         if not self.shuffle:
             self.ordering = np.array_split(np.arange(len(dataset)), 
                                            range(batch_size, len(dataset), batch_size))
+        else:
+            arr = np.arange(len(dataset))
+            np.random.shuffle(arr)
+            self.ordering = np.array_split(arr, range(batch_size, len(dataset), batch_size))
 
     def __iter__(self):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        self.idx = -1
         ### END YOUR SOLUTION
         return self
 
     def __next__(self):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        self.idx += 1
+        if self.idx >= len(self.ordering):
+            self.idx = -1
+            raise StopIteration
+
+        samples = []
+        samples = self.dataset[self.ordering[self.idx]]
+        samples = [Tensor(x) for x in samples]
+        return samples
         ### END YOUR SOLUTION
 
 
@@ -130,17 +152,42 @@ class MNISTDataset(Dataset):
         transforms: Optional[List] = None,
     ):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        super().__init__(transforms)
+        self.image_filename = image_filename
+        self.label_filename = label_filename
+
+        with gzip.open(image_filename, 'rb') as f:
+            # read first 16 bytes and interprets them as C struct values
+            # '>' means big endian
+            # 'I' character indicates that the next 4 bytes should be interpreted as an unsigned integer (4 bytes each).
+            magic, num_images, rows, cols = struct.unpack('>IIII', f.read(16))
+            image_size = rows * cols
+            # create ndarray from read buffer, convert into dtype=float32
+            data = np.frombuffer(f.read(), dtype=np.uint8).astype(np.float32)
+            # normalization uint8 ranges in [0,255], so divide values by 255.0
+            data = data / 255.0
+            data = data.reshape(num_images, image_size)
+
+        with gzip.open(label_filename, 'rb') as f:
+            magic, num_items = struct.unpack('>II', f.read(8))
+            labels = np.frombuffer(f.read(), dtype=np.uint8)
+        
+        data = data.reshape((-1, rows, cols, 1))
+
+        self.data = data
+        self.labels = labels
         ### END YOUR SOLUTION
 
     def __getitem__(self, index) -> object:
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        img = self.data[index]
+        super().apply_transforms(img)
+        return img, self.labels[index]
         ### END YOUR SOLUTION
 
     def __len__(self) -> int:
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return self.data.shape[0]
         ### END YOUR SOLUTION
 
 class NDArrayDataset(Dataset):
